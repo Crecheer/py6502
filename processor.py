@@ -1,12 +1,10 @@
-from itertools import cycle
-from operator import truediv
-
 import memory
 import sys
 
 class Processor:
 
     ADDRESSING = [
+        # 0      1      2      3      4     5      6      7      8       9     A      B       C      D     E      F
         "imp", "inx", "imp", "inx", "zp",  "zp",  "zp",  "zp",  "imp", "imm", "acc", "imm", "abs", "abs", "abs", "abs",  # 0
         "rel", "iny", "imp", "iny", "zpx", "zpx", "zpx", "zpx", "imp", "aby", "imp", "aby", "abx", "abx", "abx", "abx",  # 1
         "abs", "inx", "imp", "inx", "zp",  "zp",  "zp",  "zp",  "imp", "imm", "acc", "imm", "abs", "abs", "abs", "abs",  # 2
@@ -26,6 +24,7 @@ class Processor:
     ]
 
     OPCODES = [
+        # 0      1      2     3      4       5     6       7      8      9     A       B      C     D       E      F
         "brk", "ora", "nop", "slo", "nop", "ora", "asl", "slo", "php", "ora", "asl", "nop", "nop", "ora", "asl", "slo",  # 0
         "bpl", "ora", "nop", "slo", "nop", "ora", "asl", "slo", "clc", "ora", "nop", "slo", "nop", "ora", "asl", "slo",  # 1
         "jsr", "and", "nop", "rla", "bit", "and", "rol", "rla", "plp", "and", "rol", "nop", "bit", "and", "rol", "rla",  # 2
@@ -58,7 +57,7 @@ class Processor:
         self.flag_c = True # carry flag
         self.flag_z = True # zero flag
         self.flag_i = True # interrupt enable / disable flag
-        self.flag_d = False # decimal mode flag, not gonna implement since it isnt used in the nes
+        self.flag_d = False # decimal mode flag,
         self.flag_b = True # break flag
         self.flag_unused = True # unused, always set true
         self.flag_v = True # overflow flag
@@ -66,8 +65,8 @@ class Processor:
 
     def reset(self) -> None:
         # reset processor
-        self.pc = 0xFCE2 # starting point of pc (not sure if this was this way in the nes but it is in the datasheet im using xd
-        self.sp = 0x01FD # same as with pc
+        self.pc = 0xFCE2 # starting point of program counter
+        self.sp = 0x01FD # starting point of stack pointer
         self.cycles = 0
         self.flag_i = True
         self.flag_d = False
@@ -283,7 +282,6 @@ class Processor:
         self.eval_flag(self.reg_accumulator, "n")
         self.eval_flag(self.reg_accumulator, "z")
 
-    # NOT THIS AGAIN BUT WITH REG X D:
     def ins_ldx_imm(self) -> None:
         # load x reg immediate
         self.reg_x = self.fetch_byte()
@@ -314,7 +312,6 @@ class Processor:
         self.eval_flag(self.reg_x, "n")
         self.eval_flag(self.reg_x, "z")
 
-    # aaaaand the same thing with reg y D:
     def ins_ldy_imm(self) -> None:
         # load y reg immediate
         self.reg_y = self.fetch_byte()
