@@ -142,7 +142,6 @@ class Processor:
     def execute(self, cycles: int = 0):
         while(self.cycles < cycles) or (cycles == 0):
             opcode = self.fetch_byte()
-            print("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
             try: eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
             except AttributeError: print("non implemented instruction")
     def ins_nop_imp(self) -> None:
@@ -151,7 +150,6 @@ class Processor:
 
     def ins_clc_imp(self) -> None:
         # clear carry flag
-        print("exec")
         self.flag_c = False
         self.cycles += 1
 

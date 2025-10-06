@@ -1,5 +1,3 @@
-import numpy as np
-
 class Memory:
     def __init__(self, size: int = 65536):
         self.size = size
