@@ -1,3 +1,5 @@
+from enum import nonmember
+
 import memory
 import sys
 
@@ -356,3 +358,134 @@ class Processor:
         # set interrupt mode
         self.flag_i = True
         self.cycles += 1
+
+    def ins_sta_zp(self) -> None:
+        # store accumulator zero page
+        self.write_byte(self.fetch_byte(), self.reg_accumulator)
+
+    def ins_sta_zpx(self) -> None:
+        # store accumulator zero page x
+        self.write_byte((self.fetch_byte() + self.read_register("x")) & 0xFF, self.reg_accumulator)
+
+    def ins_sta_abs(self) -> None:
+        # store accumulator absolute
+        self.write_byte(self.fetch_word(), self.reg_accumulator)
+
+    def ins_sta_abx(self) -> None:
+        # store accumulator absolute x
+        self.write_byte(self.read_byte(self.fetch_word() + self.reg_x), self.reg_accumulator)
+
+    def ins_sta_aby(self) -> None:
+        # store accumulator absolute y
+        self.write_byte(self.read_byte(self.fetch_word() + self.reg_y), self.reg_accumulator)
+
+    def ins_sta_inx(self) -> None:
+        # store accumulator indexed indirect
+        self.write_byte(self.read_byte(self.read_word(((self.fetch_byte() + self.reg_x) & 0xFF))), self.reg_accumulator)
+
+    def ins_sta_iny(self) -> None:
+        # store accumulator indirect indexed
+        self.write_byte((self.read_byte(self.read_word(((self.fetch_byte() + self.reg_y) & 0xFF)))), self.reg_accumulator)
+
+    def ins_stx_zp(self) -> None:
+        # store x register zero page
+        self.write_byte(self.fetch_byte(), self.reg_x)
+
+    def ins_stx_zpy(self) -> None:
+        # store x register zero page y
+        self.write_byte((self.fetch_byte() + self.read_register("y")) & 0xFF, self.reg_x)
+
+    def ins_stx_abs(self) -> None:
+        # store x register absolute
+        self.write_byte(self.fetch_word(), self.reg_x)
+
+    def ins_sty_zp(self) -> None:
+        # store y register zero page
+        self.write_byte(self.fetch_byte(), self.reg_accumulator)
+
+    def ins_sty_zpx(self) -> None:
+        # store y register zero page x
+        self.write_byte((self.fetch_byte() + self.read_register("x")) & 0xFF, self.reg_y)
+
+    def ins_sty_abs(self) -> None:
+        # store y register absolute
+        self.write_byte(self.fetch_word(), self.reg_y)
+
+    def ins_tax_imp(self) -> None:
+        # transfer accumulator to x
+        self.reg_x = self.read_register("a")
+        self.eval_flag(self.reg_x, "z")
+        self.eval_flag(self.reg_x, "n")
+
+    def ins_tay_imp(self) -> None:
+        # transfer accumulator to y
+        self.reg_y = self.read_register("a")
+        self.eval_flag(self.reg_y, "z")
+        self.eval_flag(self.reg_y, "n")
+
+    def ins_tsx_imp(self) -> None:
+        # transfer stack pointer to x
+        self.reg_x = self.pop_stack()
+        self.eval_flag(self.reg_x, "z")
+        self.eval_flag(self.reg_x, "n")
+
+    def ins_txa_imp(self) -> None:
+        # transfer x to accumulator
+        self.reg_accumulator = self.read_register("x")
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def ins_txs_imp(self) -> None:
+        # transfer x to stack pointer
+        self.push_stack(self.reg_x)
+
+    def ins_tya_imp(self) -> None:
+        # transfer y to accumulator
+        self.reg_accumulator = self.read_register("y")
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def ins_pha_imp(self) -> None:
+        # push accumulator
+        self.memory[self.sp] = self.read_register("a")
+        self.sp -= 1
+        self.cycles += 1
+
+    def ins_pla_imp(self) -> None:
+        # push processor status
+        flags = 0x00
+        if self.flag_n:
+            flags = flags | (1 << 1)
+        if self.flag_v:
+            flags = flags | (1 << 2)
+        if self.flag_b:
+            flags = flags | (1 << 3)
+        if self.flag_d:
+            flags = flags | (1 << 4)
+        if self.flag_i:
+            flags = flags | (1 << 5)
+        if self.flag_z:
+            flags = flags | (1 << 6)
+        if self.flag_c:
+            flags = flags | (1 << 7)
+        self.push_stack(flags)
+        self.cycles += 1
+
+    def ins_plp_imp(self) -> None:
+        # pull processor status
+        flags = self.pop_stack()
+        if not flags & (1 << 1):
+            self.flag_n = False
+        if not flags & (1 << 2):
+            self.flag_v = False
+        if not flags & (1 << 3):
+            self.flag_b = False
+        if not flags & (1 << 4):
+            self.flag_d = False
+        if not flags & (1 << 5):
+            self.flag_i = False
+        if not flags & (1 << 6):
+            self.flag_z = False
+        if not flags & (1 << 7):
+            self.flag_c = False
+        self.cycles += 2
