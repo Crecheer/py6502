@@ -41,7 +41,7 @@ class Processor:
         "bcs", "lda", "nop", "lax", "ldy", "lda", "ldx", "lax", "clv", "lda", "tsx", "lax", "ldy", "lda", "ldx", "lax",  # B
         "cpy", "cmp", "nop", "dcp", "cpy", "cmp", "dec", "dcp", "iny", "cmp", "dex", "nop", "cpy", "cmp", "dec", "dcp",  # C
         "bne", "cmp", "nop", "dcp", "nop", "cmp", "dec", "dcp", "cld", "cmp", "nop", "dcp", "nop", "cmp", "dec", "dcp",  # D
-        "cpx", "sbc", "nop", "isb", "cpx", "sbc", "inc", "isb", "inx", "sbc", "nop", "sbc", "cpx", "sbc", "inc", "isb",  # E
+        "cpx", "sbc", "stp", "isb", "cpx", "sbc", "inc", "isb", "inx", "sbc", "nop", "sbc", "cpx", "sbc", "inc", "isb",  # E
         "beq", "sbc", "nop", "isb", "nop", "sbc", "inc", "isb", "sed", "sbc", "nop", "isb", "nop", "sbc", "inc", "isb",  # F
     ]
 
@@ -64,6 +64,9 @@ class Processor:
         self.flag_unused = True # unused, always set true
         self.flag_v = True # overflow flag
         self.flag_n = True # negative flag
+
+        # only used for run until
+        self.running = False
 
     def reset(self) -> None:
         # reset processor
@@ -143,8 +146,20 @@ class Processor:
     def execute(self, cycles: int = 0):
         while(self.cycles < cycles) or (cycles == 0):
             opcode = self.fetch_byte()
-            try: eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
+            try:
+                eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
+                print(self.reg_accumulator)
             except AttributeError: print("non implemented instruction")
+
+    def execute_until_stop(self):
+        self.running = True
+        while self.running:
+            opcode = self.fetch_byte()
+            print(self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
+            try:
+                eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
+            except AttributeError: print("non implemented instruction, instruction = " + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
+
     def ins_nop_imp(self) -> None:
         # no operation
         self.cycles += 1
@@ -489,3 +504,8 @@ class Processor:
         if not flags & (1 << 7):
             self.flag_c = False
         self.cycles += 2
+
+    def ins_stp_imm(self) -> None:
+        # stop for execute until stop
+        self.running = False
+        print("Stopped")
