@@ -142,6 +142,48 @@ class Processor:
                 else:
                     self.flag_z = False
 
+    def _adc_logic(self, value: int) -> None:
+        carry = 1 if self.flag_c else 0
+        result = self.reg_accumulator + value + carry
+
+        self.flag_v = bool(~(self.reg_accumulator ^ value) & (self.reg_accumulator ^ result) & 0x80)
+
+        self.flag_c = result > 0xFF
+        self.reg_accumulator = result & 0xFF
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def _sbc_logic(self, value: int) -> None:
+        self._adc_logic(value ^ 0xFF)
+
+    def _cmp_logic(self, reg_val: int, mem_val: int) -> None:
+        result = (reg_val - mem_val) & 0xFF
+        self.flag_c = reg_val >= mem_val
+        self.eval_flag(result, "z")
+        self.eval_flag(result, "n")
+
+    def _branch_logic(self, condition: bool):
+        offset = self.fetch_byte()
+        if offset & 0x80: offset -= 0x100
+
+        if condition:
+            self.cycles += 1
+            old_pc = self.pc
+            self.pc = (self.pc + offset) & 0xFFFF
+            if (old_pc & 0xFF00) != (self.pc & 0xFF00):  # page check
+                self.cycles += 1
+
+    def _get_status_byte(self, is_instruction: bool) -> int:
+        status = 0
+        if self.flag_c: status |= (1 << 0)
+        if self.flag_z: status |= (1 << 1)
+        if self.flag_i: status |= (1 << 2)
+        if self.flag_d: status |= (1 << 3)
+        if is_instruction: status |= (1 << 4)
+        status |= (1 << 5)
+        if self.flag_v: status |= (1 << 6)
+        if self.flag_n: status |= (1 << 7)
+        return status
 
     def execute(self, cycles: int = 0):
         while(self.cycles < cycles) or (cycles == 0):
@@ -156,6 +198,7 @@ class Processor:
         while self.running:
             opcode = self.fetch_byte()
             print(self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
+            print(self.pc)
             try:
                 eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
             except AttributeError: print("non implemented instruction, instruction = " + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
@@ -228,14 +271,12 @@ class Processor:
         self.cycles += 1
 
     def ins_dex_imp(self) -> None:
-        # decrement x register
-        self.reg_x = self.read_register("x") - 1
+        self.reg_x = (self.reg_x - 1) & 0xFF
         self.eval_flag(self.reg_x, "n")
         self.eval_flag(self.reg_x, "z")
 
     def ins_dey_imp(self) -> None:
-        # decrement y register
-        self.reg_y = self.read_register("y") - 1
+        self.reg_y = (self.reg_y - 1) & 0xFF
         self.eval_flag(self.reg_y, "n")
         self.eval_flag(self.reg_y, "z")
 
@@ -488,23 +529,146 @@ class Processor:
 
     def ins_plp_imp(self) -> None:
         # pull processor status
-        flags = self.pop_stack()
-        if not flags & (1 << 1):
-            self.flag_n = False
-        if not flags & (1 << 2):
-            self.flag_v = False
-        if not flags & (1 << 3):
-            self.flag_b = False
-        if not flags & (1 << 4):
-            self.flag_d = False
-        if not flags & (1 << 5):
-            self.flag_i = False
-        if not flags & (1 << 6):
-            self.flag_z = False
-        if not flags & (1 << 7):
-            self.flag_c = False
+        status = self.pop_stack()
+        self.flag_c = bool(status & (1 << 0))
+        self.flag_z = bool(status & (1 << 1))
+        self.flag_i = bool(status & (1 << 2))
+        self.flag_d = bool(status & (1 << 3))
+        self.flag_v = bool(status & (1 << 6))
+        self.flag_n = bool(status & (1 << 7))
         self.cycles += 2
 
+
+    def ins_adc_imm(self):
+        self._adc_logic(self.fetch_byte())
+
+    def ins_sbc_imm(self):
+        self._sbc_logic(self.fetch_byte())
+
+    def ins_cmp_imm(self):
+        self._cmp_logic(self.reg_accumulator, self.fetch_byte())
+
+    def ins_cpx_imm(self):
+        self._cmp_logic(self.reg_x, self.fetch_byte())
+
+    def ins_cpy_imm(self):
+        self._cmp_logic(self.reg_y, self.fetch_byte())
+
+    def ins_and_imm(self):
+        self.reg_accumulator &= self.fetch_byte()
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def ins_ora_imm(self):
+        self.reg_accumulator |= self.fetch_byte()
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def ins_eor_imm(self):
+        self.reg_accumulator ^= self.fetch_byte()
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def ins_bit_zp(self):
+        value = self.read_byte(self.fetch_byte())
+        self.flag_z = (self.reg_accumulator & value) == 0
+        self.flag_n = bool(value & 0x80)
+        self.flag_v = bool(value & 0x40)
+
+    def ins_asl_acc(self):
+        self.flag_c = bool(self.reg_accumulator & 0x80)
+        self.reg_accumulator = (self.reg_accumulator << 1) & 0xFF
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+        self.cycles += 1
+
+    def ins_lsr_acc(self):
+        self.flag_c = bool(self.reg_accumulator & 0x01)
+        self.reg_accumulator >>= 1
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+        self.cycles += 1
+
+    def ins_rol_acc(self):
+        old_c = 1 if self.flag_c else 0
+        self.flag_c = bool(self.reg_accumulator & 0x80)
+        self.reg_accumulator = ((self.reg_accumulator << 1) | old_c) & 0xFF
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+        self.cycles += 1
+
+    def ins_ror_acc(self):
+        old_c = 0x80 if self.flag_c else 0
+        self.flag_c = bool(self.reg_accumulator & 0x01)
+        self.reg_accumulator = (self.reg_accumulator >> 1) | old_c
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+        self.cycles += 1
+
+    def ins_bcs_rel(self):
+        self._branch_logic(self.flag_c)
+
+    def ins_bcc_rel(self):
+        self._branch_logic(not self.flag_c)
+
+    def ins_beq_rel(self):
+        self._branch_logic(self.flag_z)
+
+    def ins_bne_rel(self):
+        self._branch_logic(not self.flag_z)
+
+    def ins_bmi_rel(self):
+        self._branch_logic(self.flag_n)
+
+    def ins_bpl_rel(self):
+        self._branch_logic(not self.flag_n)
+
+    def ins_jmp_abs(self):
+        self.pc = self.fetch_word()
+
+    def ins_jmp_ind(self):
+        # without the jump pagewrap bug, im too lazy to do that :D
+        self.pc = self.read_word(self.fetch_word())
+
+    def ins_brk_imp(self):
+        self.pc += 1
+        self.push_stack((self.pc >> 8) & 0xFF)
+        self.push_stack(self.pc & 0xFF)
+        self.ins_pla_imp()
+        self.flag_i = True
+        self.pc = self.read_word(0xFFFE)
+        self.running = False
+
+    def ins_rti_imp(self):
+        # Pull status, then pull PC
+        self.ins_plp_imp()
+        low = self.pop_stack()
+        high = self.pop_stack()
+        self.pc = (high << 8) | low
+
+    def ins_php_imp(self) -> None:
+        status = self._get_status_byte(is_instruction=True)
+        self.push_stack(status)
+        self.cycles += 1
+
+    def ins_nop_abs(self):
+        self.fetch_word()
+        self.cycles += 1
+
+    def ins_and_zpx(self) -> None:
+        address = (self.fetch_byte() + self.read_register("x")) & 0xFF
+        self.reg_accumulator &= self.read_byte(address)
+
+        self.eval_flag(self.reg_accumulator, "z")
+        self.eval_flag(self.reg_accumulator, "n")
+
+    def ins_bit_abs(self) -> None:
+        address = self.fetch_word()
+        value = self.read_byte(address)
+        self.flag_z = (self.reg_accumulator & value) == 0
+        self.flag_n = (value & 0x80) != 0
+        self.flag_v = (value & 0x40) != 0
+        
     def ins_stp_imm(self) -> None:
         # stop for execute until stop
         self.running = False
