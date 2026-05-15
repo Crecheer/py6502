@@ -3,6 +3,7 @@ from enum import nonmember
 import memory
 import sys
 
+
 class Processor:
 
     ADDRESSING = [
@@ -56,22 +57,22 @@ class Processor:
         self.cycles = 0
 
         # flags of status register
-        self.flag_c = True # carry flag
-        self.flag_z = True # zero flag
-        self.flag_i = True # interrupt enable / disable flag
-        self.flag_d = False # decimal mode flag,
-        self.flag_b = True # break flag
-        self.flag_unused = True # unused, always set true
-        self.flag_v = True # overflow flag
-        self.flag_n = True # negative flag
+        self.flag_c = True  # carry flag
+        self.flag_z = True  # zero flag
+        self.flag_i = True  # interrupt enable / disable flag
+        self.flag_d = False  # decimal mode flag,
+        self.flag_b = True  # break flag
+        self.flag_unused = True  # unused, always set true
+        self.flag_v = True  # overflow flag
+        self.flag_n = True  # negative flag
 
         # only used for run until
         self.running = False
 
     def reset(self) -> None:
         # reset processor
-        self.pc = 0xFCE2 # starting point of program counter
-        self.sp = 0x01FD # starting point of stack pointer
+        self.pc = 0xFCE2  # starting point of program counter
+        self.sp = 0x01FD  # starting point of stack pointer
         self.cycles = 0
         self.flag_i = True
         self.flag_d = False
@@ -79,12 +80,12 @@ class Processor:
 
     def read_byte(self, address: int) -> int:
         data = self.memory[address]
-        self.cycles += 1 # reading byte takes 1 cycle in the real processor
+        self.cycles += 1  # reading byte takes 1 cycle in the real processor
         return data
 
     def write_byte(self, address: int, value: int) -> None:
         self.memory[address] = value
-        self.cycles += 1 # writing also takes 1 cycle irl
+        self.cycles += 1  # writing also takes 1 cycle irl
 
     def read_word(self, address: int) -> int:
         if sys.byteorder == "little":
@@ -146,7 +147,8 @@ class Processor:
         carry = 1 if self.flag_c else 0
         result = self.reg_accumulator + value + carry
 
-        self.flag_v = bool(~(self.reg_accumulator ^ value) & (self.reg_accumulator ^ result) & 0x80)
+        self.flag_v = bool(~(self.reg_accumulator ^ value) &
+                           (self.reg_accumulator ^ result) & 0x80)
 
         self.flag_c = result > 0xFF
         self.reg_accumulator = result & 0xFF
@@ -164,7 +166,10 @@ class Processor:
 
     def _branch_logic(self, condition: bool):
         offset = self.fetch_byte()
-        if offset & 0x80: offset -= 0x100
+        if offset & 0x80:
+            offset -= 0x100
+
+        print(offset)
 
         if condition:
             self.cycles += 1
@@ -175,33 +180,48 @@ class Processor:
 
     def _get_status_byte(self, is_instruction: bool) -> int:
         status = 0
-        if self.flag_c: status |= (1 << 0)
-        if self.flag_z: status |= (1 << 1)
-        if self.flag_i: status |= (1 << 2)
-        if self.flag_d: status |= (1 << 3)
-        if is_instruction: status |= (1 << 4)
+        if self.flag_c:
+            status |= (1 << 0)
+        if self.flag_z:
+            status |= (1 << 1)
+        if self.flag_i:
+            status |= (1 << 2)
+        if self.flag_d:
+            status |= (1 << 3)
+        if is_instruction:
+            status |= (1 << 4)
         status |= (1 << 5)
-        if self.flag_v: status |= (1 << 6)
-        if self.flag_n: status |= (1 << 7)
+        if self.flag_v:
+            status |= (1 << 6)
+        if self.flag_n:
+            status |= (1 << 7)
         return status
 
     def execute(self, cycles: int = 0):
-        while(self.cycles < cycles) or (cycles == 0):
+        while (self.cycles < cycles) or (cycles == 0):
             opcode = self.fetch_byte()
             try:
-                eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
+                eval("self.ins_" + self.OPCODES[opcode] +
+                     "_" + self.ADDRESSING[opcode] + "()")
                 print(self.reg_accumulator)
-            except AttributeError: print("non implemented instruction")
+            except AttributeError:
+                print("non implemented instruction")
 
-    def execute_until_stop(self):
+    def execute_until_stop(self, label=None):
         self.running = True
         while self.running:
             opcode = self.fetch_byte()
             print(self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
             print(self.pc)
+            if label != None:
+                label.setText(f"{self.OPCODES[opcode]}_{self.ADDRESSING[opcode]}\nPC = {
+                    self.pc}\nAcc = {self.reg_accumulator}\nX = {self.reg_x}, Y = {self.reg_y}")
             try:
-                eval("self.ins_" + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode] + "()")
-            except AttributeError: print("non implemented instruction, instruction = " + self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
+                eval("self.ins_" + self.OPCODES[opcode] +
+                     "_" + self.ADDRESSING[opcode] + "()")
+            except AttributeError:
+                print("non implemented instruction, instruction = " +
+                      self.OPCODES[opcode] + "_" + self.ADDRESSING[opcode])
 
     def ins_nop_imp(self) -> None:
         # no operation
@@ -280,7 +300,6 @@ class Processor:
         self.eval_flag(self.reg_y, "n")
         self.eval_flag(self.reg_y, "z")
 
-
     def ins_inx_imp(self) -> None:
         # increment x register
         self.reg_x = self.read_register("x") + 1
@@ -307,7 +326,8 @@ class Processor:
 
     def ins_lda_zpx(self) -> None:
         # load accumulator zero page x
-        self.reg_accumulator = self.read_byte((self.fetch_byte() + self.read_register("x")) & 0xFF)
+        self.reg_accumulator = self.read_byte(
+            (self.fetch_byte() + self.read_register("x")) & 0xFF)
         self.eval_flag(self.reg_accumulator, "n")
         self.eval_flag(self.reg_accumulator, "z")
 
@@ -331,12 +351,14 @@ class Processor:
 
     def ins_lda_inx(self) -> None:
         # load accumulator indexed indirect
-        self.reg_accumulator = self.read_byte(self.read_word(((self.fetch_byte() + self.reg_x) & 0xFF)))
+        self.reg_accumulator = self.read_byte(
+            self.read_word(((self.fetch_byte() + self.reg_x) & 0xFF)))
         self.eval_flag(self.reg_accumulator, "n")
         self.eval_flag(self.reg_accumulator, "z")
 
     def ins_lda_iny(self) -> None:
-        self.reg_accumulator = self.read_byte(self.read_word(self.fetch_byte()) + self.reg_y)
+        self.reg_accumulator = self.read_byte(
+            self.read_word(self.fetch_byte()) + self.reg_y)
         self.eval_flag(self.reg_accumulator, "n")
         self.eval_flag(self.reg_accumulator, "z")
 
@@ -354,7 +376,8 @@ class Processor:
 
     def ins_ldx_zpy(self) -> None:
         # load reg x zero page y
-        self.reg_x = self.read_byte((self.fetch_byte() + self.read_register("x")) & 0xFF)
+        self.reg_x = self.read_byte(
+            (self.fetch_byte() + self.read_register("x")) & 0xFF)
         self.eval_flag(self.reg_x, "n")
         self.eval_flag(self.reg_x, "z")
 
@@ -384,7 +407,8 @@ class Processor:
 
     def ins_ldy_zpx(self) -> None:
         # load reg y zero page x
-        self.reg_y = self.read_byte((self.fetch_byte() + self.read_register("x")) & 0xFF)
+        self.reg_y = self.read_byte(
+            (self.fetch_byte() + self.read_register("x")) & 0xFF)
         self.eval_flag(self.reg_y, "n")
         self.eval_flag(self.reg_y, "z")
 
@@ -421,7 +445,8 @@ class Processor:
 
     def ins_sta_zpx(self) -> None:
         # store accumulator zero page x
-        self.write_byte((self.fetch_byte() + self.read_register("x")) & 0xFF, self.reg_accumulator)
+        self.write_byte((self.fetch_byte() + self.read_register("x"))
+                        & 0xFF, self.reg_accumulator)
 
     def ins_sta_abs(self) -> None:
         # store accumulator absolute
@@ -429,19 +454,23 @@ class Processor:
 
     def ins_sta_abx(self) -> None:
         # store accumulator absolute x
-        self.write_byte(self.read_byte(self.fetch_word() + self.reg_x), self.reg_accumulator)
+        self.write_byte(self.read_byte(self.fetch_word() +
+                        self.reg_x), self.reg_accumulator)
 
     def ins_sta_aby(self) -> None:
         # store accumulator absolute y
-        self.write_byte(self.read_byte(self.fetch_word() + self.reg_y), self.reg_accumulator)
+        self.write_byte(self.read_byte(self.fetch_word() +
+                        self.reg_y), self.reg_accumulator)
 
     def ins_sta_inx(self) -> None:
         # store accumulator indexed indirect
-        self.write_byte(self.read_byte(self.read_word(((self.fetch_byte() + self.reg_x) & 0xFF))), self.reg_accumulator)
+        self.write_byte(self.read_byte(self.read_word(
+            ((self.fetch_byte() + self.reg_x) & 0xFF))), self.reg_accumulator)
 
     def ins_sta_iny(self) -> None:
         # store accumulator indirect indexed
-        self.write_byte((self.read_byte(self.read_word(((self.fetch_byte() + self.reg_y) & 0xFF)))), self.reg_accumulator)
+        self.write_byte((self.read_byte(self.read_word(
+            ((self.fetch_byte() + self.reg_y) & 0xFF)))), self.reg_accumulator)
 
     def ins_stx_zp(self) -> None:
         # store x register zero page
@@ -449,7 +478,8 @@ class Processor:
 
     def ins_stx_zpy(self) -> None:
         # store x register zero page y
-        self.write_byte((self.fetch_byte() + self.read_register("y")) & 0xFF, self.reg_x)
+        self.write_byte(
+            (self.fetch_byte() + self.read_register("y")) & 0xFF, self.reg_x)
 
     def ins_stx_abs(self) -> None:
         # store x register absolute
@@ -461,7 +491,8 @@ class Processor:
 
     def ins_sty_zpx(self) -> None:
         # store y register zero page x
-        self.write_byte((self.fetch_byte() + self.read_register("x")) & 0xFF, self.reg_y)
+        self.write_byte(
+            (self.fetch_byte() + self.read_register("x")) & 0xFF, self.reg_y)
 
     def ins_sty_abs(self) -> None:
         # store y register absolute
@@ -537,7 +568,6 @@ class Processor:
         self.flag_v = bool(status & (1 << 6))
         self.flag_n = bool(status & (1 << 7))
         self.cycles += 2
-
 
     def ins_adc_imm(self):
         self._adc_logic(self.fetch_byte())
@@ -668,7 +698,7 @@ class Processor:
         self.flag_z = (self.reg_accumulator & value) == 0
         self.flag_n = (value & 0x80) != 0
         self.flag_v = (value & 0x40) != 0
-        
+
     def ins_stp_imm(self) -> None:
         # stop for execute until stop
         self.running = False
